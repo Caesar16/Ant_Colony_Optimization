@@ -6,9 +6,8 @@ import math
 
 
 class AntColonyOptimization:
-    def __init__(self, ants, evaporation_rate, pheromone_intensification, size_raw, size_col, list_of_var, low=1.0, high=10.0, alpha=1.0, beta=0.0, beta_evaporation_rate=0, choose_best=.1):
+    def __init__(self, ants, evaporation_rate, pheromone_intensification, size_raw, size_col, list_of_var, low=1.0, high=10.0, alpha=1.2, beta=0.3, beta_evaporation_rate=0.2, choose_best=.1):
         """
-               Ant colony optimizer.  Traverses a graph and finds either the max or min distance between nodes.
                :param ants: number of ants to traverse the graph
                :param evaporation_rate: rate at which pheromone evaporates
                :param intensification: constant added to the best path
@@ -43,8 +42,6 @@ class AntColonyOptimization:
         self.a = None
         self.b = None
         self.n = None
-        #self.map = None
-        #self.set_of_available_nodes = None
 
         # Internal stats
         #self.best_series = []
@@ -55,12 +52,10 @@ class AntColonyOptimization:
 
         # Plotting values
         self.stopped_early = False
-        print("hello ant")
+        print("run ACO")
 
     def __str__(self):
         string = "Ant Colony Optimizer"
-        string += "\n--------------------"
-        string += "\nDesigned to optimize either the minimum or maximum distance between nodes in a square matrix that behaves like a distance matrix."
         string += "\n--------------------"
         string += f"\nNumber of ants:\t\t\t\t{self.ants}"
         string += f"\nEvaporation rate:\t\t\t{self.evaporation_rate}"
@@ -89,11 +84,14 @@ class AntColonyOptimization:
         plt.show()
 
     def initialize(self):
+        """
+        Evaporate some pheromone as the inverse of the evaporation rate. Also evaporates beta if desired.
+        """
         self.main_array = np.empty((self.size_raw, self.size_col), dtype=object)
-        self.heuristic_matrix = np.empty((self.size_raw, self.size_col), dtype=object)
-        self.probability_matrix = np.empty((self.size_raw, self.size_col), dtype=object)
-        self.pheromone_matrix = np.empty((self.size_raw, self.size_col), dtype=object)
-        self.cost_function = np.empty((self.size_raw, self.size_col), dtype=object)
+        #self.heuristic_matrix = np.empty((self.size_raw, self.size_col), dtype=object)
+        self.probability_matrix = np.ones((self.size_raw, self.size_col), dtype=object)
+        self.pheromone_matrix = np.ones((self.size_raw, self.size_col), dtype=object)
+        self.cost_function = np.ones((self.size_raw, self.size_col), dtype=object)
         for i in range(self.size_raw):
             for j in range(self.size_col):
                 self.main_array[i][j] = [round(random.uniform(self.low, self.high), 2), round(random.uniform(self.low, self.high), 2)]
@@ -106,6 +104,9 @@ class AntColonyOptimization:
         self.heuristic_beta *= (1 - self.beta_evaporation_rate)
 
     def computation(self, raw, column):
+        """
+        Computes cost function, based on difference between experimental value and model value. Updates pheromone value and probability matrices.
+        """
         diff_1 = 0
         diff_2 = 0
         #self.heuristic_matrix[raw][column] = (a / (abs(a - self.main_array[raw][column])))
@@ -117,56 +118,48 @@ class AntColonyOptimization:
         else:
             best_diff = diff_1
         self.cost_function[raw][column] = best_diff / self.n
+        self.pheromone_matrix[raw][column] = ((1 - self.evaporation_rate) * self.pheromone_matrix[raw][column]) + self.pheromone_intensification
+        self.probability_matrix[raw][column] = np.power(self.pheromone_matrix[raw][column], self.heuristic_alpha) * np.power(self.cost_function[raw][column], self.heuristic_beta)
 
-        #self.pheromone_matrix[raw][column] = ((1 - self.evaporation_rate) * self.pheromone_matrix[raw][column]) + self.pheromone_intensification
-        #self.probability_matrix[raw][column] = math.pow(self.pheromone_matrix[raw][column], self.heuristic_alpha) * math.pow(self.cost_function[raw][column], self.heuristic_beta)
-
-    def epoch(self, procent):
+    def epoch(self, percent):
+        """
+        Chooses best value from previous epoch and calculates new range of values, percent is a variable which determine how big new range will be. Fills matrix starting from the top left corner.
+        """
         best_epoch_value = np.amin(self.cost_function)
         self.main_array = np.empty((self.size_raw, self.size_col), dtype=object)
-        prc_per_node = procent / (self.size_raw * self.size_col)
-        start = best_epoch_value - (best_epoch_value * (procent / 2))
+        prc_per_node = 1 + (percent / (self.size_raw * self.size_col))
+        start = best_epoch_value - (best_epoch_value * (percent / 2))
         for x_ in range(self.size_col):
             for y_ in range(self.size_raw):
                 self.main_array[x_][y_] = start * prc_per_node
 
-    def fitted(self, iterations, epoch_num = 100, procent = .45, procent_dec = .4):
+    def fitted(self, iterations, epoch_num=10, percent=10.0, percent_dec=.4):
         """
-        The goal of this function is find (in random way) first number in the first ever iteration, after that when algorithim pick two numbers will upload the matrices and create new one with new numbers in the center of mastrix.
-        :param main_array:
-        :param heuristic_matrix:
-        :param probability_matrix:
-        :param pheromone_matrix:
-        :return:
+        The goal of this function is find (in random way) first number in the first ever iteration, after that when algorithim pick two numbers will upload the matrices and create new one with new numbers in the center of matrix.
         """
-
-        for iteration in range(1, iterations + 1):                         # number of initial iteration
-            for agent in range(1, self.ants + 1):       # 5 ants
-                for num_col in range(self.size_col):    # column size is 5
+        for iteration in range(1, iterations + 1):      # number of iterations
+            for agent in range(1, self.ants + 1):       # 10 ants
+                for num_col in range(self.size_col):    # column size is 10
                     #if iteration == 0:
-                    #   rand_raw = random.randint(0, self.size_raw - 1)
-                    #else:
-                    #   rand_raw = self.main_array[var][:, num_col].tolist().index(max(self.main_array[var][:, num_col]))
                     rand_raw = random.randint(0, self.size_raw - 1)
+                    #else:
+                    #    rand_raw = list.index(self.probability_matrix[:][num_col])
+                    #print(rand_raw, num_col)
                     self.computation(rand_raw, num_col)
                     if iter == epoch_num:
-                        self.epoch(procent - procent_dec)
-                        self.fitted(iterations - iteration, epoch_num, procent - procent_dec)
+                        self.epoch(percent - percent_dec)
+                        self.fitted(iterations - iteration, epoch_num, percent - percent_dec)
         #best = np.amin(self.cost_function)
-        #matrix = np.array(self.main_array)
-        #best_ind = np.where(matrix == best)
-        best_ind_raw = np.argmin(self.cost_function, axis=1)
+        #best_ind = np.where(self.cost_function == best)
+        best_ind_raw = np.where(np.argmin(self.cost_function, axis=1))
         best_ind_col = np.argmin(self.cost_function, axis=0)
         print(self.main_array[best_ind_raw, best_ind_col])
-
-
 
     def plot(self):
         """
         Plots the score over time after the model has been fitted.
         :return: plot
         """
-
         fig, ax = plt.subplots(figsize=(20, 15))
         ax.plot(self.best_series, label="Best Run")
         ax.set_xlabel("Iteration")
@@ -182,13 +175,8 @@ class AntColonyOptimization:
         plt.show()
 
 
-
-random.seed( 30 )
-d = AntColonyOptimization(5, 3, 2, 9, 9, [3,4])
+random.seed(30)
+d = AntColonyOptimization(5, 3, 2, 10, 10, [3, 4])
 d.initialize()
 d.sinus_function()
-d.fitted(1000)
-
-
-
-
+d.fitted(100)
